@@ -1,0 +1,253 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { Camera, Download, RefreshCw } from 'lucide-react';
+
+const PhotoEditorBlueGradient = () => {
+  const [uploadedImage, setUploadedImage] = useState(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const canvasRef = useRef(null);
+  const displayCanvasRef = useRef(null);
+  const fileInputRef = useRef(null);
+  const animationRef = useRef(null);
+
+  const handleImageUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          setUploadedImage(img);
+        };
+        img.src = event.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  useEffect(() => {
+    if (!uploadedImage) return;
+
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    
+    // Set canvas size sama dengan ukuran gambar
+    canvas.width = uploadedImage.width;
+    canvas.height = uploadedImage.height;
+
+    const displayCanvas = displayCanvasRef.current;
+    const displayCtx = displayCanvas.getContext('2d');
+    displayCanvas.width = Math.min(800, uploadedImage.width);
+    displayCanvas.height = (displayCanvas.width / uploadedImage.width) * uploadedImage.height;
+
+    const particles = [];
+    const particleCount = 150;
+
+    class Particle {
+      constructor() {
+        this.reset();
+      }
+
+      reset() {
+        this.x = Math.random() * canvas.width;
+        this.y = Math.random() * canvas.height;
+        this.size = Math.random() * 4 + 1;
+        this.speedY = Math.random() * 2 + 1;
+        this.speedX = Math.random() * 1 - 0.5;
+        this.opacity = Math.random() * 0.6 + 0.4;
+      }
+
+      update() {
+        this.y += this.speedY;
+        this.x += this.speedX;
+
+        if (this.y > canvas.height) {
+          this.y = 0;
+          this.x = Math.random() * canvas.width;
+        }
+
+        if (this.x > canvas.width || this.x < 0) {
+          this.x = Math.random() * canvas.width;
+        }
+      }
+
+      draw(context) {
+        context.fillStyle = `rgba(255, 255, 255, ${this.opacity})`;
+        context.beginPath();
+        context.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        context.fill();
+      }
+    }
+
+    for (let i = 0; i < particleCount; i++) {
+      particles.push(new Particle());
+    }
+
+    function animate() {
+      // Draw on main canvas (for download)
+      ctx.drawImage(uploadedImage, 0, 0);
+      
+      // Add blue gradient overlay
+      const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+      gradient.addColorStop(0, 'rgba(107, 159, 232, 0.7)');
+      gradient.addColorStop(0.5, 'rgba(74, 127, 216, 0.75)');
+      gradient.addColorStop(1, 'rgba(91, 143, 229, 0.7)');
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Draw particles
+      particles.forEach(particle => {
+        particle.update();
+        particle.draw(ctx);
+      });
+
+      // Draw on display canvas (for preview)
+      displayCtx.clearRect(0, 0, displayCanvas.width, displayCanvas.height);
+      displayCtx.drawImage(canvas, 0, 0, displayCanvas.width, displayCanvas.height);
+
+      animationRef.current = requestAnimationFrame(animate);
+    }
+
+    animate();
+
+    return () => {
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
+    };
+  }, [uploadedImage]);
+
+  const handleDownload = () => {
+    if (!uploadedImage) return;
+    
+    setIsProcessing(true);
+    
+    // Tunggu sebentar agar frame terakhir terender
+    setTimeout(() => {
+      const canvas = canvasRef.current;
+      canvas.toBlob((blob) => {
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.download = `blue-gradient-${Date.now()}.png`;
+        link.href = url;
+        link.click();
+        URL.revokeObjectURL(url);
+        setIsProcessing(false);
+      }, 'image/png');
+    }, 100);
+  };
+
+  const handleReset = () => {
+    setUploadedImage(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 py-12 px-4">
+      <div className="max-w-5xl mx-auto">
+        {/* Header */}
+        <div className="text-center mb-12">
+          <h1 className="text-5xl font-bold text-blue-900 mb-4">
+            Photo Editor
+          </h1>
+          <p className="text-xl text-blue-700">
+            Tambahkan Gradasi Biru & Efek Salju pada Foto Anda
+          </p>
+        </div>
+
+        {/* Main Content */}
+        <div className="bg-white rounded-3xl shadow-2xl p-8">
+          {!uploadedImage ? (
+            // Upload Area
+            <div className="text-center py-16">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleImageUpload}
+                className="hidden"
+              />
+              <div 
+                onClick={() => fileInputRef.current.click()}
+                className="border-4 border-dashed border-blue-300 rounded-2xl p-16 cursor-pointer hover:border-blue-500 hover:bg-blue-50 transition-all duration-300"
+              >
+                <Camera className="w-24 h-24 text-blue-400 mx-auto mb-6" />
+                <h3 className="text-2xl font-semibold text-gray-700 mb-3">
+                  Upload Foto Anda
+                </h3>
+                <p className="text-gray-500 mb-6">
+                  Klik di sini atau drag & drop foto Anda
+                </p>
+                <button className="bg-blue-600 text-white px-8 py-3 rounded-full font-semibold hover:bg-blue-700 transition-all duration-300">
+                  Pilih Foto
+                </button>
+              </div>
+            </div>
+          ) : (
+            // Preview & Download Area
+            <div>
+              <div className="mb-6">
+                <h3 className="text-2xl font-semibold text-gray-800 mb-4">
+                  Preview Hasil:
+                </h3>
+                <div className="bg-gray-100 rounded-2xl p-4 flex items-center justify-center">
+                  <canvas
+                    ref={displayCanvasRef}
+                    className="max-w-full h-auto rounded-xl shadow-lg"
+                  />
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex flex-wrap gap-4 justify-center mt-8">
+                <button
+                  onClick={handleDownload}
+                  disabled={isProcessing}
+                  className="bg-green-600 text-white px-8 py-4 rounded-full font-semibold text-lg hover:bg-green-700 transition-all duration-300 shadow-lg hover:shadow-xl flex items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Download size={24} />
+                  {isProcessing ? 'Memproses...' : 'Download Hasil'}
+                </button>
+                
+                <button
+                  onClick={handleReset}
+                  className="bg-gray-600 text-white px-8 py-4 rounded-full font-semibold text-lg hover:bg-gray-700 transition-all duration-300 shadow-lg hover:shadow-xl flex items-center gap-3"
+                >
+                  <RefreshCw size={24} />
+                  Upload Foto Baru
+                </button>
+              </div>
+
+              {/* Hidden canvas for full quality download */}
+              <canvas ref={canvasRef} className="hidden" />
+            </div>
+          )}
+        </div>
+
+        {/* Features */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-12">
+          <div className="bg-white rounded-2xl p-6 shadow-lg text-center">
+            <div className="text-5xl mb-4">📸</div>
+            <h3 className="text-xl font-semibold text-gray-800 mb-2">Upload</h3>
+            <p className="text-gray-600">Pilih foto dari perangkat Anda</p>
+          </div>
+
+          <div className="bg-white rounded-2xl p-6 shadow-lg text-center">
+            <div className="text-5xl mb-4">✨</div>
+            <h3 className="text-xl font-semibold text-gray-800 mb-2">Otomatis</h3>
+            <p className="text-gray-600">Gradasi biru & partikel ditambahkan otomatis</p>
+          </div>
+
+          <div className="bg-white rounded-2xl p-6 shadow-lg text-center">
+            <div className="text-5xl mb-4">💾</div>
+            <h3 className="text-xl font-semibold text-gray-800 mb-2">Download</h3>
+            <p className="text-gray-600">Simpan hasil edit dengan kualitas tinggi</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default PhotoEditorBlueGradient;
