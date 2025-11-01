@@ -1,253 +1,470 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Camera, Download, RefreshCw } from 'lucide-react';
-
-const PhotoEditorBlueGradient = () => {
-  const [uploadedImage, setUploadedImage] = useState(null);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const canvasRef = useRef(null);
-  const displayCanvasRef = useRef(null);
-  const fileInputRef = useRef(null);
-  const animationRef = useRef(null);
-
-  const handleImageUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const img = new Image();
-        img.onload = () => {
-          setUploadedImage(img);
-        };
-        img.src = event.target.result;
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  useEffect(() => {
-    if (!uploadedImage) return;
-
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    
-    // Set canvas size sama dengan ukuran gambar
-    canvas.width = uploadedImage.width;
-    canvas.height = uploadedImage.height;
-
-    const displayCanvas = displayCanvasRef.current;
-    const displayCtx = displayCanvas.getContext('2d');
-    displayCanvas.width = Math.min(800, uploadedImage.width);
-    displayCanvas.height = (displayCanvas.width / uploadedImage.width) * uploadedImage.height;
-
-    const particles = [];
-    const particleCount = 150;
-
-    class Particle {
-      constructor() {
-        this.reset();
-      }
-
-      reset() {
-        this.x = Math.random() * canvas.width;
-        this.y = Math.random() * canvas.height;
-        this.size = Math.random() * 4 + 1;
-        this.speedY = Math.random() * 2 + 1;
-        this.speedX = Math.random() * 1 - 0.5;
-        this.opacity = Math.random() * 0.6 + 0.4;
-      }
-
-      update() {
-        this.y += this.speedY;
-        this.x += this.speedX;
-
-        if (this.y > canvas.height) {
-          this.y = 0;
-          this.x = Math.random() * canvas.width;
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blue Gradient Photo Editor</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
 
-        if (this.x > canvas.width || this.x < 0) {
-          this.x = Math.random() * canvas.width;
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+            min-height: 100vh;
+            padding: 20px;
         }
-      }
 
-      draw(context) {
-        context.fillStyle = `rgba(255, 255, 255, ${this.opacity})`;
-        context.beginPath();
-        context.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-        context.fill();
-      }
-    }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
 
-    for (let i = 0; i < particleCount; i++) {
-      particles.push(new Particle());
-    }
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
 
-    function animate() {
-      // Draw on main canvas (for download)
-      ctx.drawImage(uploadedImage, 0, 0);
-      
-      // Add blue gradient overlay
-      const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
-      gradient.addColorStop(0, 'rgba(107, 159, 232, 0.7)');
-      gradient.addColorStop(0.5, 'rgba(74, 127, 216, 0.75)');
-      gradient.addColorStop(1, 'rgba(91, 143, 229, 0.7)');
-      ctx.fillStyle = gradient;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+        .header h1 {
+            font-size: 3em;
+            color: #1565c0;
+            margin-bottom: 10px;
+        }
 
-      // Draw particles
-      particles.forEach(particle => {
-        particle.update();
-        particle.draw(ctx);
-      });
+        .header p {
+            font-size: 1.2em;
+            color: #1976d2;
+        }
 
-      // Draw on display canvas (for preview)
-      displayCtx.clearRect(0, 0, displayCanvas.width, displayCanvas.height);
-      displayCtx.drawImage(canvas, 0, 0, displayCanvas.width, displayCanvas.height);
+        .card {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        }
 
-      animationRef.current = requestAnimationFrame(animate);
-    }
+        .upload-area {
+            border: 3px dashed #64b5f6;
+            border-radius: 15px;
+            padding: 60px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
 
-    animate();
+        .upload-area:hover {
+            border-color: #2196f3;
+            background: #e3f2fd;
+        }
 
-    return () => {
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
-      }
-    };
-  }, [uploadedImage]);
+        .upload-area.active {
+            border-color: #1976d2;
+            background: #bbdefb;
+        }
 
-  const handleDownload = () => {
-    if (!uploadedImage) return;
-    
-    setIsProcessing(true);
-    
-    // Tunggu sebentar agar frame terakhir terender
-    setTimeout(() => {
-      const canvas = canvasRef.current;
-      canvas.toBlob((blob) => {
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.download = `blue-gradient-${Date.now()}.png`;
-        link.href = url;
-        link.click();
-        URL.revokeObjectURL(url);
-        setIsProcessing(false);
-      }, 'image/png');
-    }, 100);
-  };
+        .upload-icon {
+            font-size: 4em;
+            margin-bottom: 20px;
+        }
 
-  const handleReset = () => {
-    setUploadedImage(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-  };
+        .upload-area h3 {
+            font-size: 1.5em;
+            color: #424242;
+            margin-bottom: 10px;
+        }
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 py-12 px-4">
-      <div className="max-w-5xl mx-auto">
-        {/* Header */}
-        <div className="text-center mb-12">
-          <h1 className="text-5xl font-bold text-blue-900 mb-4">
-            Photo Editor
-          </h1>
-          <p className="text-xl text-blue-700">
-            Tambahkan Gradasi Biru & Efek Salju pada Foto Anda
-          </p>
+        .upload-area p {
+            color: #757575;
+            margin-bottom: 20px;
+        }
+
+        .btn {
+            padding: 15px 40px;
+            border: none;
+            border-radius: 50px;
+            font-size: 1.1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .btn-primary {
+            background: #2196f3;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #1976d2;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(33, 150, 243, 0.3);
+        }
+
+        .btn-success {
+            background: #4caf50;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #388e3c;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(76, 175, 80, 0.3);
+        }
+
+        .btn-secondary {
+            background: #757575;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #616161;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(117, 117, 117, 0.3);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        .preview-area {
+            display: none;
+        }
+
+        .preview-area.active {
+            display: block;
+        }
+
+        .preview-title {
+            font-size: 1.5em;
+            color: #424242;
+            margin-bottom: 20px;
+        }
+
+        .canvas-container {
+            background: #f5f5f5;
+            border-radius: 15px;
+            padding: 20px;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        #displayCanvas {
+            max-width: 100%;
+            height: auto;
+            border-radius: 10px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+        }
+
+        .button-group {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-top: 40px;
+        }
+
+        .feature-card {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+        }
+
+        .feature-icon {
+            font-size: 3em;
+            margin-bottom: 15px;
+        }
+
+        .feature-card h3 {
+            font-size: 1.3em;
+            color: #424242;
+            margin-bottom: 10px;
+        }
+
+        .feature-card p {
+            color: #757575;
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        #mainCanvas {
+            display: none;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 2em;
+            }
+            
+            .header p {
+                font-size: 1em;
+            }
+
+            .card {
+                padding: 20px;
+            }
+
+            .button-group {
+                flex-direction: column;
+            }
+
+            .btn {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎨 Photo Editor</h1>
+            <p>Tambahkan Gradasi Biru & Efek Salju pada Foto Anda</p>
         </div>
 
-        {/* Main Content */}
-        <div className="bg-white rounded-3xl shadow-2xl p-8">
-          {!uploadedImage ? (
-            // Upload Area
-            <div className="text-center py-16">
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleImageUpload}
-                className="hidden"
-              />
-              <div 
-                onClick={() => fileInputRef.current.click()}
-                className="border-4 border-dashed border-blue-300 rounded-2xl p-16 cursor-pointer hover:border-blue-500 hover:bg-blue-50 transition-all duration-300"
-              >
-                <Camera className="w-24 h-24 text-blue-400 mx-auto mb-6" />
-                <h3 className="text-2xl font-semibold text-gray-700 mb-3">
-                  Upload Foto Anda
-                </h3>
-                <p className="text-gray-500 mb-6">
-                  Klik di sini atau drag & drop foto Anda
-                </p>
-                <button className="bg-blue-600 text-white px-8 py-3 rounded-full font-semibold hover:bg-blue-700 transition-all duration-300">
-                  Pilih Foto
+        <div class="card">
+            <!-- Upload Area -->
+            <div id="uploadArea" class="upload-area">
+                <div class="upload-icon">📸</div>
+                <h3>Upload Foto Anda</h3>
+                <p>Klik di sini atau drag & drop foto Anda</p>
+                <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">
+                    Pilih Foto
                 </button>
-              </div>
+                <input type="file" id="fileInput" accept="image/*">
             </div>
-          ) : (
-            // Preview & Download Area
-            <div>
-              <div className="mb-6">
-                <h3 className="text-2xl font-semibold text-gray-800 mb-4">
-                  Preview Hasil:
-                </h3>
-                <div className="bg-gray-100 rounded-2xl p-4 flex items-center justify-center">
-                  <canvas
-                    ref={displayCanvasRef}
-                    className="max-w-full h-auto rounded-xl shadow-lg"
-                  />
+
+            <!-- Preview Area -->
+            <div id="previewArea" class="preview-area">
+                <h3 class="preview-title">Preview Hasil:</h3>
+                <div class="canvas-container">
+                    <canvas id="displayCanvas"></canvas>
                 </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex flex-wrap gap-4 justify-center mt-8">
-                <button
-                  onClick={handleDownload}
-                  disabled={isProcessing}
-                  className="bg-green-600 text-white px-8 py-4 rounded-full font-semibold text-lg hover:bg-green-700 transition-all duration-300 shadow-lg hover:shadow-xl flex items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <Download size={24} />
-                  {isProcessing ? 'Memproses...' : 'Download Hasil'}
-                </button>
-                
-                <button
-                  onClick={handleReset}
-                  className="bg-gray-600 text-white px-8 py-4 rounded-full font-semibold text-lg hover:bg-gray-700 transition-all duration-300 shadow-lg hover:shadow-xl flex items-center gap-3"
-                >
-                  <RefreshCw size={24} />
-                  Upload Foto Baru
-                </button>
-              </div>
-
-              {/* Hidden canvas for full quality download */}
-              <canvas ref={canvasRef} className="hidden" />
+                <div class="button-group">
+                    <button id="downloadBtn" class="btn btn-success">
+                        💾 Download Hasil
+                    </button>
+                    <button id="resetBtn" class="btn btn-secondary">
+                        🔄 Upload Foto Baru
+                    </button>
+                </div>
             </div>
-          )}
+
+            <canvas id="mainCanvas"></canvas>
         </div>
 
-        {/* Features */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-12">
-          <div className="bg-white rounded-2xl p-6 shadow-lg text-center">
-            <div className="text-5xl mb-4">📸</div>
-            <h3 className="text-xl font-semibold text-gray-800 mb-2">Upload</h3>
-            <p className="text-gray-600">Pilih foto dari perangkat Anda</p>
-          </div>
-
-          <div className="bg-white rounded-2xl p-6 shadow-lg text-center">
-            <div className="text-5xl mb-4">✨</div>
-            <h3 className="text-xl font-semibold text-gray-800 mb-2">Otomatis</h3>
-            <p className="text-gray-600">Gradasi biru & partikel ditambahkan otomatis</p>
-          </div>
-
-          <div className="bg-white rounded-2xl p-6 shadow-lg text-center">
-            <div className="text-5xl mb-4">💾</div>
-            <h3 className="text-xl font-semibold text-gray-800 mb-2">Download</h3>
-            <p className="text-gray-600">Simpan hasil edit dengan kualitas tinggi</p>
-          </div>
+        <!-- Features -->
+        <div class="features">
+            <div class="feature-card">
+                <div class="feature-icon">📸</div>
+                <h3>Upload</h3>
+                <p>Pilih foto dari perangkat Anda</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">✨</div>
+                <h3>Otomatis</h3>
+                <p>Gradasi biru & partikel ditambahkan otomatis</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">💾</div>
+                <h3>Download</h3>
+                <p>Simpan hasil edit dengan kualitas tinggi</p>
+            </div>
         </div>
-      </div>
     </div>
-  );
-};
 
-export default PhotoEditorBlueGradient;
+    <script>
+        const fileInput = document.getElementById('fileInput');
+        const uploadArea = document.getElementById('uploadArea');
+        const previewArea = document.getElementById('previewArea');
+        const mainCanvas = document.getElementById('mainCanvas');
+        const displayCanvas = document.getElementById('displayCanvas');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        
+        let uploadedImage = null;
+        let animationId = null;
+        let particles = [];
+
+        // Drag & Drop functionality
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('active');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('active');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('active');
+            const file = e.dataTransfer.files[0];
+            if (file && file.type.startsWith('image/')) {
+                handleFile(file);
+            }
+        });
+
+        uploadArea.addEventListener('click', (e) => {
+            if (e.target !== uploadArea && e.target.closest('.btn')) return;
+            fileInput.click();
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                handleFile(file);
+            }
+        });
+
+        function handleFile(file) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const img = new Image();
+                img.onload = () => {
+                    uploadedImage = img;
+                    showPreview();
+                    startAnimation();
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function showPreview() {
+            uploadArea.style.display = 'none';
+            previewArea.classList.add('active');
+        }
+
+        class Particle {
+            constructor(width, height) {
+                this.width = width;
+                this.height = height;
+                this.reset();
+            }
+
+            reset() {
+                this.x = Math.random() * this.width;
+                this.y = Math.random() * this.height;
+                this.size = Math.random() * 4 + 1;
+                this.speedY = Math.random() * 2 + 1;
+                this.speedX = Math.random() * 1 - 0.5;
+                this.opacity = Math.random() * 0.6 + 0.4;
+            }
+
+            update() {
+                this.y += this.speedY;
+                this.x += this.speedX;
+
+                if (this.y > this.height) {
+                    this.y = 0;
+                    this.x = Math.random() * this.width;
+                }
+
+                if (this.x > this.width || this.x < 0) {
+                    this.x = Math.random() * this.width;
+                }
+            }
+
+            draw(ctx) {
+                ctx.fillStyle = `rgba(255, 255, 255, ${this.opacity})`;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        function startAnimation() {
+            const ctx = mainCanvas.getContext('2d');
+            const displayCtx = displayCanvas.getContext('2d');
+
+            // Set canvas size
+            mainCanvas.width = uploadedImage.width;
+            mainCanvas.height = uploadedImage.height;
+
+            displayCanvas.width = Math.min(800, uploadedImage.width);
+            displayCanvas.height = (displayCanvas.width / uploadedImage.width) * uploadedImage.height;
+
+            // Create particles
+            particles = [];
+            const particleCount = 150;
+            for (let i = 0; i < particleCount; i++) {
+                particles.push(new Particle(mainCanvas.width, mainCanvas.height));
+            }
+
+            function animate() {
+                // Draw image
+                ctx.drawImage(uploadedImage, 0, 0);
+
+                // Add blue gradient overlay
+                const gradient = ctx.createLinearGradient(0, 0, 0, mainCanvas.height);
+                gradient.addColorStop(0, 'rgba(107, 159, 232, 0.7)');
+                gradient.addColorStop(0.5, 'rgba(74, 127, 216, 0.75)');
+                gradient.addColorStop(1, 'rgba(91, 143, 229, 0.7)');
+                ctx.fillStyle = gradient;
+                ctx.fillRect(0, 0, mainCanvas.width, mainCanvas.height);
+
+                // Draw and update particles
+                particles.forEach(particle => {
+                    particle.update();
+                    particle.draw(ctx);
+                });
+
+                // Draw on display canvas
+                displayCtx.clearRect(0, 0, displayCanvas.width, displayCanvas.height);
+                displayCtx.drawImage(mainCanvas, 0, 0, displayCanvas.width, displayCanvas.height);
+
+                animationId = requestAnimationFrame(animate);
+            }
+
+            animate();
+        }
+
+        downloadBtn.addEventListener('click', () => {
+            downloadBtn.disabled = true;
+            downloadBtn.innerHTML = '⏳ Memproses...';
+
+            setTimeout(() => {
+                mainCanvas.toBlob((blob) => {
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.download = `blue-gradient-${Date.now()}.png`;
+                    link.href = url;
+                    link.click();
+                    URL.revokeObjectURL(url);
+
+                    downloadBtn.disabled = false;
+                    downloadBtn.innerHTML = '💾 Download Hasil';
+                }, 'image/png');
+            }, 100);
+        });
+
+        resetBtn.addEventListener('click', () => {
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+            }
+            uploadedImage = null;
+            particles = [];
+            fileInput.value = '';
+            previewArea.classList.remove('active');
+            uploadArea.style.display = 'block';
+        });
+    </script>
+</body>
+</html>
